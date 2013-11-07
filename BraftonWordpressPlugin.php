@@ -145,6 +145,7 @@ function delete_cat_tag($catortag)
 	
 	$string = implode(",", $brafton_table);
 	update_option($input, $string);
+	logMsg("The following tag: " . $catortag . " has been deleted through the Brafton Importer Settings!");
 }
 
 function braftonxml_sched_deactivate()
@@ -154,12 +155,16 @@ function braftonxml_sched_deactivate()
 	delete_option("braftonxml_sched_triggercount");
 	delete_option("braftonxml_sched_API_KEY");
 	delete_option("braftonxml_domain");
-}
 
+	logMsg("The Brafton Importer plugin has been deactivated!" );
+}
+// Unschedule braftonxml_sched_hook cron job.
 add_action("init", "clear_crons_left");
 function clear_crons_left()
 {
 	wp_clear_scheduled_hook("braftonxml_sched_hook");
+
+	
 }
 
 /* Admin options page display function is called */
@@ -176,18 +181,22 @@ function braftonxml_sched_setoptions()
 {
 	global $feedSettings;
 	
-	if (!empty($_POST['braftonxml_default_author']))
+	if (!empty($_POST['braftonxml_default_author'])){
 		update_option("braftonxml_default_author", $_POST['braftonxml_default_author']);
-	
+		logMsg("Post Author setting has been set in Brafton Settings. 
+				All articles will be attributed to: ". get_option("braftonxml_default_author"));
+		}
 	if (!empty($_POST['braftonxml_sched_API_KEY'])){
 		$apiKey=trim($_POST['braftonxml_sched_API_KEY']);
 		update_option("braftonxml_sched_API_KEY", $apiKey);
-	}
+		logMsg("Brafton API key has been set to: " . get_option("braftonxml_sched_API_KEY"));
+		}
 	
 	if (!empty($_POST['braftonxml_domain']))
 	{
 		update_option("braftonxml_domain", $_POST['braftonxml_domain']);
 		update_option("braftonxml_sched_url", 'http://' . $_POST['braftonxml_domain']);
+		logMsg("Brafton XML Domain has been set to: " . get_option("braftonxml_sched_url"));
 	}
 	
 	//update_option("braftonxml_sched_url", 'http://api.brafton.com');
@@ -210,9 +219,10 @@ function braftonxml_sched_setoptions()
 	if (!empty($_POST['braftonxml_sched_status']))
 		update_option("braftonxml_sched_status", $_POST['braftonxml_sched_status']);
 	
-	if (!empty($_POST['braftonxml_overwrite']))
+	if (!empty($_POST['braftonxml_overwrite'])){
 		update_option("braftonxml_overwrite", $_POST['braftonxml_overwrite']);
-	
+		logMsg("Include updated feed content status has been set to Overwrite."); 
+		}
 	if (!empty($_POST['braftonxml_publishdate']))
 		update_option("braftonxml_publishdate", $_POST['braftonxml_publishdate']);
 	
@@ -242,6 +252,7 @@ function braftonxml_sched_setoptions()
 		$timestamp = wp_next_scheduled('braftonxml_sched_hook', $feedSettings);
 		/* This is where the event gets unscheduled */
 		wp_unschedule_event($timestamp, "braftonxml_sched_hook", $feedSettings);
+		logMsg("Brafton Importer plugin has been disabled");
 	}
 	
 	if (!empty($_POST['braftonxml_sched_submit']))
@@ -252,6 +263,8 @@ function braftonxml_sched_setoptions()
 			braftonxml_clear_all_crons('braftonxml_sched_hook');
 			wp_schedule_event(time() + 3600, "hourly", "braftonxml_sched_hook", $feedSettings);
 			braftonxml_sched_trigger_schedule($feedSettings['url'], $feedSettings['API_Key']);
+
+			logMsg("Brafton Importer Plugin has been scheduled as a recurring event successfully:");
 		}
 	}
 }
@@ -335,6 +348,8 @@ function braftonxml_sched_trigger_schedule($url, $API_Key)
 	braftonxml_sched_load_articles($url, $API_Key);
 	update_option("braftonxml_sched_triggercount", get_option("braftonxml_sched_triggercount") + 1);
 	
+
+	logMsg("Brafton Article Importer scheduled as a recurring event successfully.");
 	// HACK: posts are duplicated due to a lack of cron lock resolution (see http://core.trac.wordpress.org/ticket/19700)
 	// this is fixed in wp versions >= 3.4.
 	$wpVersion = get_bloginfo('version');
@@ -343,7 +358,7 @@ function braftonxml_sched_trigger_schedule($url, $API_Key)
 		duplicateKiller();
 }
 
-/* The options page display */
+/* The options page default display */
 function braftonxml_sched_options_page()
 {
 	add_option("braftonxml_sched_cats", "categories");
@@ -769,9 +784,6 @@ function braftonxml_sched_load_videos()
 	$publicKey = get_option("braftonxml_videoPublic");
 	$secretKey = get_option("braftonxml_videoSecret");
 	
-	if($publicKey=="xxxxx" || $secretKey=="xxxxx") return;
-	
-	
 	$baseURL = 'http://api.video.brafton.com/v2/';
 	$photoURI = "http://pictures.directnews.co.uk/v2/";
 	$videoClient = new AdferoVideoClient($baseURL, $publicKey, $secretKey);
@@ -828,7 +840,7 @@ function braftonxml_sched_load_videos()
 		
 		//echo $embedCode->embedCode."<br><br><br>";
 		
-		$post_author = apply_filters('braftonxml_author', get_option("braftonxml_default_author", 1));
+		$post_author = get_option("braftonxml_default_author", 1);
 		
 		//$post_content = "<div id='singlePostVideo'>".$embedCode->embedCode."</div>".$thisArticle->fields['content'];
 		$post_content = $thisArticle->fields['content'];
@@ -843,6 +855,8 @@ function braftonxml_sched_load_videos()
 		
 		$article = compact('post_author', 'post_date', 'post_date_gmt', 'post_content', 'post_title', 'post_status', 'post_excerpt');
 		
+
+
 		if (isset($categories->ListForArticle($brafton_id, 0, 100)->items[0]->id))
 		{
 			$categoryId = $categories->ListForArticle($brafton_id, 0, 100)->items[0]->id;
@@ -1005,7 +1019,7 @@ function braftonxml_sched_load_articles($url, $API_Key)
 		$post_title = $a->getHeadline();
 		$post_content = $a->getText();
 		$photos = $a->getPhotos();
-		
+
 		if (get_option("braftonxml_domain") == 'api.castleford.com.au')
 			$post_excerpt = $a->getHtmlMetaDescription();
 		else
@@ -1053,7 +1067,8 @@ function braftonxml_sched_load_articles($url, $API_Key)
 		$post_id = brafton_post_exists($brafton_id);
 		$post_date;
 		$post_date_gmt;
-		$post_author = apply_filters('braftonxml_author', get_option("braftonxml_default_author", 1));
+		$post_author = get_option("braftonxml_default_author", 1);
+
 		if ($post_id)
 			$post_status = get_post_status($post_id);
 		else
@@ -1062,6 +1077,8 @@ function braftonxml_sched_load_articles($url, $API_Key)
 		$guid = $API_Key;
 		$categories = array();
 		$tags_input = array();
+
+
 		
 		// Do some formatting
 		$post_date_gmt = strtotime($date);
@@ -1072,7 +1089,9 @@ function braftonxml_sched_load_articles($url, $API_Key)
 		$post_content = str_replace('<hr>', '<hr />', $post_content);
 		
 		// Save the article to the articles array
-		$article = compact('post_author', 'post_date', 'post_date_gmt', 'post_content', 'post_title', 'post_status', 'post_excerpt');
+		$article = compact('post_author', 'post_date', 'post_date_gmt', 'post_content', 'post_title', 'post_status', 'post_excerpt', 'html_meta_keyword');
+
+
 		
 		// Category handling
 		// TODO: tag/category switching based on GUI
@@ -1092,6 +1111,9 @@ function braftonxml_sched_load_articles($url, $API_Key)
 			for ($j = 0; $j < count($custom_cat); $j++)
 				$categories[] = $custom_cat[$j];
 			$article['post_category'] = wp_create_categories($categories);
+			//Logging
+		
+			logMsg("Custom Categories and Post Categories successfully added to the database: " . implode(", ", $CatColl) . " " . $post_id);
 		}
 		else if ($cat_option == 'none_cat' && $custom_cat[0] != "")
 		{
@@ -1114,12 +1136,16 @@ function braftonxml_sched_load_articles($url, $API_Key)
 				if ((in_array($c->getName(), $name)))
 					$categories[] = $wpdb->escape($c->getName());
 			$article['post_category'] = wp_create_categories($categories);
+			logMsg("Neither Brafton Categories nor custom category options is not selected: " . implode(", ", $CatColl));
 		}
 		else if ($cat_option == 'categories' && $custom_cat[0] == "")
 		{
 			foreach ($CatColl as $c)
 				$categories[] = $wpdb->escape($c->getName());
 			$article['post_category'] = wp_create_categories($categories);
+			//Logging
+			
+			logMsg("Only Brafton Category option was selected and categories were successfully added to the database: " . implode(", ",  $CatColl) . " " . $post_id);
 		}
 		
 		// tags
@@ -1128,9 +1154,13 @@ function braftonxml_sched_load_articles($url, $API_Key)
 			foreach ($CatColl as $c)
 				$tags_input[] = $wpdb->escape($c->getName());
 			
+
 			for ($j = 0; $j < count($custom_tags); $j++)
 				$tags_input[] = $custom_tags[$j];
+ 
 			$article['tags_input'] = $tags_input;
+
+			logMsg("There are no custom tags selected in Brafton Settings but this post is tagged by Brafton Categories: The Post ID: " . $post_id . " Brafton category list " . implode(", ",  $CatColl) . " Tags: " . implode(", ",  $tags_input));
 		}
 		else if ($tag_option == 'none_tags' && $custom_tags[0] != "")
 		{
@@ -1153,12 +1183,17 @@ function braftonxml_sched_load_articles($url, $API_Key)
 				if ((in_array($c->getName(), $name)))
 					$tags_input[] = $wpdb->escape($c->getName());
 			$article['tags_input'] = $tags_input;
+
+			
+			logMsg("There was no tags option selected in Brafton Settings but custom tags have been added to the post: Custom tags: " . implode(", ", $tags_input) . " Post ID: " . $post_id );
 		}
 		else if ($tag_option == 'cats' && $custom_tags[0] == "")
 		{
 			foreach ($CatColl as $c)
 				$tags_input[] = $wpdb->escape($c->getName());
 			$article['tags_input'] = $tags_input;
+			
+			logMsg("There are no custom tags added but Brafton Categories is selected as tags option in Brafton settings.  Post ID:" . $post_id ." Categories as tags include: " . implode(", ",  $tags_input));
 		}
 		else if ($tag_option == 'keywords' && ($custom_tags[0] == ""))
 		{
@@ -1167,6 +1202,9 @@ function braftonxml_sched_load_articles($url, $API_Key)
 				$keyword_arr = explode(',', $keywords);
 				foreach ($keyword_arr as $keyword)
 					$article['tags_input'][] = trim($keyword);
+
+	
+			logMsg("There are no custom tags added but Brafton Keywords is selected as tags option in Brafton settings.  Post ID:" . $post_id ." Keywords include: " . implode(", ",  $keyword_arr));
 			}
 		}
 		else if ($tag_option == 'keywords' && $custom_tags[0] != "")
@@ -1188,6 +1226,7 @@ function braftonxml_sched_load_articles($url, $API_Key)
 					for ($z = 0; $z < count($tname[$x]); $z++)
 						$name[] = $tname[$x][$z]->name;
 				$keyword_arr = explode(',', $keywords);
+
 				
 				foreach ($keyword_arr as $keyword)
 					$tags_input[] = trim($keyword);
@@ -1196,6 +1235,10 @@ function braftonxml_sched_load_articles($url, $API_Key)
 					if ((in_array($c->getName(), $name)))
 						$tags_input[] = $wpdb->escape($c->getName());
 				$article['tags_input'] = $tags_input;
+
+				 
+
+				logMsg("There are custom tags selected in Brafton settings: " . implode(", ",  $tags_input) ." Brafton Keywords is selected as tags option in Brafton settings.  Post ID:" . $post_id ." Keywords as tags include: " . implode(", ",  $keyword_arr));
 			}
 		}
 		else if ($tag_option == 'tags' && $custom_tags[0] == "")
@@ -1204,9 +1247,14 @@ function braftonxml_sched_load_articles($url, $API_Key)
 			foreach ($TagCollArray as $c)
 				$tags_input[] = $wpdb->escape($c);
 			
+			
+
 			for ($j = 0; $j < count($custom_tags); $j++)
 				$tags_input[] = $custom_tags[$j];
 			$article['tags_input'] = $tags_input;
+
+			
+			logMsg("There are custom tags selected in Brafton settings: " . implode(", ",  $tags_input)  ." Brafton Tags is selected as tags option in Brafton settings.  Post ID:" . $post_id ." Brafton Tags include: " . implode(", ",  $TagCollArray));
 		}
 		else if ($tag_option == 'tags' && $custom_tags[0] == "")
 		{
@@ -1219,8 +1267,10 @@ function braftonxml_sched_load_articles($url, $API_Key)
 		if ($post_id)
 		{
 			$article['ID'] = $post_id;
-			if (get_option("braftonxml_overwrite", "on") == 'on')
+			if (get_option("braftonxml_overwrite", "on") == 'on'){
 				wp_update_post($article);
+				logMsg("This post already exists: The Post ID: " . $post_id . " Overwrite is set to on " . " so post has been updated successfully");
+			}
 			
 			if (populate_postmeta($article_count, $post_id, $image_id))
 			{
@@ -1246,17 +1296,27 @@ function braftonxml_sched_load_articles($url, $API_Key)
 						update_post_meta($post_id, 'pic_id', $image_id);
 					}
 				}
+				logMsg("post meta data has been updated succesfully: " . $post_id);
 			}
 		}
 		else
 		{
 			// insert new story
 			$post_id = wp_insert_post($article);
-			if (is_wp_error($post_id))
+			logMsg("New Brafton Article has been uploaded to the wordpress database succesfully: " . $post_id);
+			if (is_wp_error($post_id)){
 				return $post_id;
+				logMsg("There was an error adding this post to the wordpress database: " . $post_id);
+			}
 			
-			if (!$post_id)
+			if (!$post_id){
+							
+				if ($article_count != $counter)
+				logMsg("The script has ended abruptly");
+				if ($article_count > $counter)
+				logMsg("Script failed to upload some articles. There are: " . $article_count - $counter . " left to import");
 				return;
+			}
 			
 			add_post_meta($post_id, 'brafton_id', $brafton_id, true);
 			
@@ -1301,6 +1361,22 @@ function braftonxml_sched_load_articles($url, $API_Key)
 			}
 		}
 		
+		#####################################################
+		# 		Byline Author Code Goes here				#							#
+		#####################################################
+
+
+		#####################################################
+		# Dynamic call to action code via html_meta_keyword #		
+		#
+		#	$html_meta_keyword = $a->getHtmlMetaKeywords(); #
+		#   logMsg($post_id . " this post's meta Keyword is #
+		#    					" . $html_meta_keyword);    #
+		#													#		
+		#    add_post_meta($post_id, 'html_meta_keyword', 	#
+		#					$html_meta_keyword,  true );	#
+		#													#
+		#####################################################
 		//logMsg($articleStatus . " " . $brafton_id . "->" . $post_id . " : " . $post_title);
 	}
 }
