@@ -1185,7 +1185,7 @@ function braftonxml_sched_load_articles($url, $API_Key)
 			$article['tags_input'] = $tags_input;
 
 			
-			logMsg("There was no tags option selected in Brafton Settings but custom tags have been added to the post: Custom tags: " . implode(", ", $tags_input) . " Post ID: " . $post_id );
+			logMsg("There was no tags option selected in Brafton Settings but custom tags have been added to the post: Custom tags: " . var_dump ($tags_input) . " Post ID: " . $post_id );
 		}
 		else if ($tag_option == 'cats' && $custom_tags[0] == "")
 		{
